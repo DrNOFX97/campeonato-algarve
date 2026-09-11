@@ -60,16 +60,26 @@ function renderJogo(jogo) {
 
   let detalhe = '';
   if (jogado) {
-    const eventos = [];
-    jogo.golos.forEach(g => {
-      eventos.push(`<span class="evento golo">${esc(g.jogador)} ${g.minuto}&prime;</span>`);
-    });
-    jogo.cartoes.forEach(c => {
-      eventos.push(`<span class="evento"><span class="cartao-tag ${esc(c.tipo_cartao)}"></span>${esc(c.jogador)} ${c.minuto}&prime;</span>`);
-    });
-    detalhe = eventos.length
-      ? `<div class="jogo-detalhe">${eventos.join('')}</div>`
-      : `<div class="jogo-detalhe"><span class="evento">Sem golos nem cartões</span></div>`;
+    const eventosPorLado = (lado) => {
+      const golos = jogo.golos
+        .filter(g => g.lado === lado)
+        .map(g => ({ minuto: g.minuto, html: `<span class="evento golo">${esc(g.jogador)} ${g.minuto}&prime;</span>` }));
+      const cartoes = jogo.cartoes
+        .filter(c => c.lado === lado)
+        .map(c => ({
+          minuto: c.minuto,
+          html: `<span class="evento"><span class="cartao-tag ${esc(c.tipo_cartao)}"></span>${esc(c.jogador)} ${c.minuto}&prime;</span>`,
+        }));
+      const todos = golos.concat(cartoes).sort((a, b) => a.minuto - b.minuto);
+      return todos.length ? todos.map(e => e.html).join('') : '<span class="evento evento-vazio">&mdash;</span>';
+    };
+
+    detalhe = `
+      <div class="jogo-detalhe">
+        <div class="detalhe-lado detalhe-casa">${eventosPorLado('casa')}</div>
+        <div class="detalhe-lado detalhe-visitante">${eventosPorLado('visitante')}</div>
+      </div>
+    `;
   }
 
   return `

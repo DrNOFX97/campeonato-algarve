@@ -232,11 +232,16 @@ def listar_jornadas():
             for row in cur.fetchall():
                 cartoes_por_jogo.setdefault(row["id_jogo"], []).append(row)
 
+    def com_lado(evento, jg):
+        evento = dict(evento)
+        evento["lado"] = "casa" if evento["id_clube"] == jg["id_casa"] else "visitante"
+        return evento
+
     por_jornada = {j["id_jornada"]: dict(j, jogos=[]) for j in jornadas}
     for jg in jogos:
         jg = dict(jg)
-        jg["golos"] = golos_por_jogo.get(jg["id_jogo"], [])
-        jg["cartoes"] = cartoes_por_jogo.get(jg["id_jogo"], [])
+        jg["golos"] = [com_lado(g, jg) for g in golos_por_jogo.get(jg["id_jogo"], [])]
+        jg["cartoes"] = [com_lado(c, jg) for c in cartoes_por_jogo.get(jg["id_jogo"], [])]
         por_jornada[jg["id_jornada"]]["jogos"].append(jg)
 
     return jsonify(list(por_jornada.values()))

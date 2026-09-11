@@ -318,14 +318,42 @@ tbody tr:not(:last-child) td {
   margin-top: 0.6rem;
   padding-top: 0.6rem;
   border-top: 1px solid rgba(245, 241, 230, 0.16);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   font-size: 0.82rem;
   color: rgba(245, 241, 230, 0.85);
 }
 
-.evento { white-space: nowrap; }
+.detalhe-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.detalhe-casa {
+  padding-right: 0.9rem;
+  align-items: flex-start;
+}
+
+.detalhe-visitante {
+  padding-left: 0.9rem;
+  margin-left: 0.9rem;
+  border-left: 1px solid rgba(245, 241, 230, 0.16);
+  align-items: flex-end;
+  text-align: right;
+}
+
+.evento {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.evento-vazio {
+  color: rgba(245, 241, 230, 0.4);
+}
 
 .evento.golo::before { content: "⚽ "; }
 
@@ -372,6 +400,20 @@ tbody tr:not(:last-child) td {
     text-align: left;
   }
   .placar { justify-content: center; }
+
+  .jogo-detalhe {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  .detalhe-visitante {
+    padding-left: 0;
+    margin-left: 0;
+    border-left: none;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(245, 241, 230, 0.16);
+    align-items: flex-start;
+    text-align: left;
+  }
 }
 
 @keyframes revelar-placar {
