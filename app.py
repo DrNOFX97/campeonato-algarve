@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import psycopg2
 import psycopg2.extras
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -24,6 +24,11 @@ MEDIA_GOLOS = 1.3
 PROB_AMARELO = 0.08
 PROB_VERMELHO = 0.005
 
+# Só o próprio frontend (servido pela app) pode chamar os endpoints que
+# escrevem na BD — barra pedidos cross-origin disparados por outra página
+# aberta no browser (ex.: um separador malicioso enquanto a app corre local).
+ORIGENS_PERMITIDAS = {"http://localhost:5000", "http://127.0.0.1:5000"}
+
 
 def get_conn():
     return psycopg2.connect(DB_DSN)
@@ -31,6 +36,15 @@ def get_conn():
 
 def erro(mensagem, codigo=400):
     return jsonify({"erro": mensagem}), codigo
+
+
+@app.before_request
+def bloquear_origem_externa():
+    if request.method != "POST":
+        return
+    origem = request.headers.get("Origin")
+    if origem is not None and origem not in ORIGENS_PERMITIDAS:
+        return erro("Origem não permitida.", 403)
 
 
 # ------------------------------------------------------------------
@@ -538,4 +552,6 @@ def reiniciar_epoca():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Nunca ligar debug=True se a app for exposta fora de localhost — o
+    # debugger do Werkzeug permite execução de código arbitrário.
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1", port=5000)
