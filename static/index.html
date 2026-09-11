@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campeonato do Algarve</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1>Campeonato do Algarve</h1>
+    <p class="epoca">Época 2026/2027</p>
+  </div>
+</header>
+
+<div id="banner-erro" class="banner-erro" hidden></div>
+
+<main>
+  <section class="classificacao" aria-labelledby="titulo-classificacao">
+    <h2 id="titulo-classificacao">Classificação</h2>
+    <div class="tabela-scroll">
+      <table id="tabela-classificacao">
+        <thead>
+          <tr>
+            <th scope="col" class="col-pos">#</th>
+            <th scope="col" class="col-clube">Clube</th>
+            <th scope="col">J</th>
+            <th scope="col">V</th>
+            <th scope="col">E</th>
+            <th scope="col">D</th>
+            <th scope="col">GM</th>
+            <th scope="col">GS</th>
+            <th scope="col">DG</th>
+            <th scope="col" class="col-pontos">Pts</th>
+          </tr>
+        </thead>
+        <tbody id="corpo-classificacao"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="estado-vazio" class="estado-vazio" hidden>
+    <p>Ainda não há calendário para esta época.</p>
+    <button id="btn-gerar-calendario" class="btn btn-ouro">Gerar calendário</button>
+  </section>
+
+  <section id="jornadas" class="jornadas" aria-label="Jornadas"></section>
+</main>
+
+<footer class="rodape">
+  <button id="btn-reiniciar" class="btn btn-fantasma">Reiniciar época</button>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

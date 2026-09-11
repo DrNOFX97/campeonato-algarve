@@ -79,6 +79,7 @@ CREATE TABLE jogo (
     id_estadio             INTEGER NOT NULL REFERENCES estadio(id_estadio),
     golos_casa             INTEGER NOT NULL DEFAULT 0 CHECK (golos_casa >= 0),
     golos_visitante        INTEGER NOT NULL DEFAULT 0 CHECK (golos_visitante >= 0),
+    jogado                 BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- Regra de negócio 1: uma equipa não pode jogar contra si própria
     CONSTRAINT chk_equipas_diferentes CHECK (id_equipa_casa <> id_equipa_visitante)
