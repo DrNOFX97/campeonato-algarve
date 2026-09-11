@@ -356,6 +356,7 @@ tbody tr:not(:last-child) td {
 }
 
 .evento.golo::before { content: "⚽ "; }
+.evento.golo-esq::after { content: " ⚽"; }
 
 .cartao-tag {
   display: inline-block;
