@@ -29,6 +29,10 @@ function formatarEquipa(nome, logo, visitante) {
   return `<div class="equipa${visitante ? ' equipa-visitante' : ''}">${img}${span}</div>`;
 }
 
+// ------------------------------------------------------------------
+// Classificação
+// ------------------------------------------------------------------
+
 function renderClassificacao(linhas) {
   const corpo = document.getElementById('corpo-classificacao');
   corpo.innerHTML = linhas.map((l, i) => `
@@ -51,6 +55,10 @@ function renderClassificacao(linhas) {
     </tr>
   `).join('');
 }
+
+// ------------------------------------------------------------------
+// Jornadas
+// ------------------------------------------------------------------
 
 function renderJogo(jogo) {
   const jogado = jogo.jogado;
@@ -139,22 +147,12 @@ function renderJornadas(jornadas) {
   });
 }
 
-async function carregarTudo() {
-  esconderErro();
-  const [classificacao, jornadas] = await Promise.all([
-    pedirJSON('/api/classificacao'),
-    pedirJSON('/api/jornadas'),
-  ]);
-  renderClassificacao(classificacao);
-  renderJornadas(jornadas);
-}
-
 async function gerarCalendario() {
   const btn = document.getElementById('btn-gerar-calendario');
   btn.disabled = true;
   try {
     await pedirJSON('/api/calendario/gerar', { method: 'POST' });
-    await carregarTudo();
+    await carregarPainel('jornadas');
   } catch (e) {
     mostrarErro(e.message);
   } finally {
@@ -167,7 +165,7 @@ async function simularJornada(numero) {
   if (btn) { btn.disabled = true; btn.textContent = 'A simular…'; }
   try {
     await pedirJSON(`/api/jornadas/${numero}/simular`, { method: 'POST' });
-    await carregarTudo();
+    await carregarPainel('jornadas');
     const jornadaEl = document.querySelector(`.jornada[data-numero="${numero}"]`);
     if (jornadaEl) {
       jornadaEl.classList.add('jornada-revelada');
@@ -183,13 +181,243 @@ async function reiniciarEpoca() {
   if (!confirm('Isto apaga todas as jornadas, jogos, golos e cartões desta época. Continuar?')) return;
   try {
     await pedirJSON('/api/epoca/reiniciar', { method: 'POST' });
-    await carregarTudo();
+    jogadoresPromise = null;
+    await carregarPainel(painelAtivo);
   } catch (e) {
     mostrarErro(e.message);
   }
 }
 
+// ------------------------------------------------------------------
+// Jogadores
+// ------------------------------------------------------------------
+
+let jogadoresPromise = null;
+function obterJogadores() {
+  if (!jogadoresPromise) jogadoresPromise = pedirJSON('/api/jogadores');
+  return jogadoresPromise;
+}
+
+let jogadoresCarregados = [];
+let filtrosJogadoresProntos = false;
+
+function popularSelect(select, valores) {
+  const atual = select.value;
+  const primeira = select.options[0];
+  select.innerHTML = primeira.outerHTML + valores.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (valores.includes(atual)) select.value = atual;
+}
+
+function aplicarFiltrosJogadores() {
+  const nomeQuery = document.getElementById('filtro-jogador-nome').value.trim().toLowerCase();
+  const clube = document.getElementById('filtro-jogador-clube').value;
+  const posicao = document.getElementById('filtro-jogador-posicao').value;
+  const nac = document.getElementById('filtro-jogador-nacionalidade').value;
+
+  const filtrados = jogadoresCarregados.filter(j =>
+    (!nomeQuery || j.nome.toLowerCase().includes(nomeQuery)) &&
+    (!clube || j.clube === clube) &&
+    (!posicao || j.posicao === posicao) &&
+    (!nac || j.nacionalidade === nac)
+  );
+
+  document.getElementById('contagem-jogadores').textContent =
+    `${filtrados.length} de ${jogadoresCarregados.length} jogadores`;
+
+  document.getElementById('corpo-jogadores').innerHTML = filtrados.map(j => `
+    <tr>
+      <td>${j.numero_camisola ?? '—'}</td>
+      <td>${esc(j.nome)}</td>
+      <td>
+        <div class="linha-clube">
+          ${j.clube_logo ? `<img class="escudo" src="${esc(j.clube_logo)}" alt="" loading="lazy">` : ''}
+          <span>${esc(j.clube)}</span>
+        </div>
+      </td>
+      <td>${esc(j.posicao)}</td>
+      <td>${esc(j.nacionalidade)}</td>
+      <td>${new Date(j.data_nascimento).toLocaleDateString('pt-PT')}</td>
+    </tr>
+  `).join('');
+}
+
+async function carregarJogadores() {
+  jogadoresCarregados = await obterJogadores();
+
+  popularSelect(document.getElementById('filtro-jogador-clube'), [...new Set(jogadoresCarregados.map(j => j.clube))].sort());
+  popularSelect(document.getElementById('filtro-jogador-posicao'), [...new Set(jogadoresCarregados.map(j => j.posicao))].sort());
+  popularSelect(document.getElementById('filtro-jogador-nacionalidade'), [...new Set(jogadoresCarregados.map(j => j.nacionalidade))].sort());
+
+  if (!filtrosJogadoresProntos) {
+    document.getElementById('filtro-jogador-nome').addEventListener('input', aplicarFiltrosJogadores);
+    document.getElementById('filtro-jogador-clube').addEventListener('change', aplicarFiltrosJogadores);
+    document.getElementById('filtro-jogador-posicao').addEventListener('change', aplicarFiltrosJogadores);
+    document.getElementById('filtro-jogador-nacionalidade').addEventListener('change', aplicarFiltrosJogadores);
+    filtrosJogadoresProntos = true;
+  }
+
+  aplicarFiltrosJogadores();
+}
+
+// ------------------------------------------------------------------
+// Clubes
+// ------------------------------------------------------------------
+
+async function alternarPlantel(idClube, container, botao) {
+  if (container.dataset.carregado) {
+    container.hidden = !container.hidden;
+    botao.textContent = container.hidden ? 'Ver plantel' : 'Esconder plantel';
+    return;
+  }
+  const jogadores = (await obterJogadores()).filter(j => j.id_clube === idClube);
+  container.innerHTML = jogadores.map(j => `
+    <div class="linha-plantel">
+      <span class="plantel-numero">${j.numero_camisola ?? '—'}</span>
+      <span class="plantel-nome">${esc(j.nome)}</span>
+      <span class="plantel-posicao">${esc(j.posicao)}</span>
+    </div>
+  `).join('');
+  container.dataset.carregado = '1';
+  container.hidden = false;
+  botao.textContent = 'Esconder plantel';
+}
+
+async function carregarClubes() {
+  const clubes = await pedirJSON('/api/clubes');
+  const container = document.getElementById('grelha-clubes');
+
+  container.innerHTML = clubes.map(c => `
+    <article class="cartao-clube">
+      <div class="cartao-clube-cabecalho">
+        ${c.logo_url ? `<img class="escudo escudo-grande" src="${esc(c.logo_url)}" alt="" loading="lazy">` : ''}
+        <div>
+          <h3>${esc(c.nome)}</h3>
+          <p class="cartao-clube-sub">${esc(c.cidade)}</p>
+          <p class="cartao-clube-sub">Fundado em ${c.ano_fundacao}</p>
+        </div>
+      </div>
+      <dl class="cartao-clube-dados">
+        <div><dt>Estádio</dt><dd>${esc(c.estadio || '—')}</dd></div>
+        <div><dt>Treinador</dt><dd>${esc(c.treinador || 'por anunciar')}</dd></div>
+        <div><dt>Plantel</dt><dd>${c.n_jogadores} jogadores</dd></div>
+      </dl>
+      <div class="cartao-clube-stats">
+        <div><span class="stat-valor">${c.pontos}</span><span class="stat-label">Pts</span></div>
+        <div><span class="stat-valor">${c.jogos}</span><span class="stat-label">J</span></div>
+        <div><span class="stat-valor">${c.vitorias}</span><span class="stat-label">V</span></div>
+        <div><span class="stat-valor">${c.empates}</span><span class="stat-label">E</span></div>
+        <div><span class="stat-valor">${c.derrotas}</span><span class="stat-label">D</span></div>
+        <div><span class="stat-valor">${c.golos_marcados}-${c.golos_sofridos}</span><span class="stat-label">Golos</span></div>
+      </div>
+      <button class="btn btn-fantasma btn-ver-plantel" data-id="${c.id_clube}">Ver plantel</button>
+      <div class="cartao-clube-plantel" id="plantel-${c.id_clube}" hidden></div>
+    </article>
+  `).join('');
+
+  container.querySelectorAll('.btn-ver-plantel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.id);
+      alternarPlantel(id, document.getElementById(`plantel-${id}`), btn);
+    });
+  });
+}
+
+// ------------------------------------------------------------------
+// Estatísticas
+// ------------------------------------------------------------------
+
+function graficoBarras(container, itens, opcoes) {
+  if (!itens.length) {
+    container.innerHTML = '<p class="grafico-vazio">Sem dados ainda — simula algumas jornadas.</p>';
+    return;
+  }
+  const max = Math.max(...itens.map(i => i.valor), 1);
+  container.innerHTML = itens.map(item => `
+    <div class="barra-linha">
+      <span class="barra-rotulo">${opcoes.formatarLabel(item)}</span>
+      <div class="barra-trilho"><div class="barra-preenchimento" style="width:${Math.round((item.valor / max) * 100)}%"></div></div>
+      <span class="barra-valor">${opcoes.formatarValor(item)}</span>
+    </div>
+  `).join('');
+}
+
+async function carregarEstatisticas() {
+  const dados = await pedirJSON('/api/estatisticas');
+  const r = dados.resumo;
+
+  document.getElementById('resumo-estatisticas').innerHTML = `
+    <div class="stat-tile"><span class="stat-tile-valor">${r.jogos_jogados}/${r.total_jogos}</span><span class="stat-tile-label">Jogos disputados</span></div>
+    <div class="stat-tile"><span class="stat-tile-valor">${r.total_golos}</span><span class="stat-tile-label">Golos marcados</span></div>
+    <div class="stat-tile"><span class="stat-tile-valor">${r.media_golos_por_jogo ?? '—'}</span><span class="stat-tile-label">Média golos / jogo</span></div>
+    <div class="stat-tile"><span class="stat-tile-valor">${r.amarelos}</span><span class="stat-tile-label">Cartões amarelos</span></div>
+    <div class="stat-tile"><span class="stat-tile-valor">${r.vermelhos}</span><span class="stat-tile-label">Cartões vermelhos</span></div>
+  `;
+
+  const comEscudo = (item) => item.clube_logo ? `<img class="escudo-mini" src="${esc(item.clube_logo)}" alt="">` : '';
+
+  graficoBarras(
+    document.getElementById('grafico-marcadores'),
+    dados.topo_marcadores.map(m => ({ ...m, valor: m.golos })),
+    { formatarLabel: m => `${comEscudo(m)}${esc(m.jogador)}`, formatarValor: m => m.golos }
+  );
+
+  graficoBarras(
+    document.getElementById('grafico-cartoes'),
+    dados.topo_cartoes.map(c => ({ ...c, valor: c.total })),
+    {
+      formatarLabel: c => `${comEscudo(c)}${esc(c.jogador)}`,
+      formatarValor: c => `${c.amarelos}&#129000;${c.vermelhos ? ` ${c.vermelhos}&#128997;` : ''}`,
+    }
+  );
+
+  graficoBarras(
+    document.getElementById('grafico-jornadas'),
+    dados.golos_por_jornada.map(j => ({ ...j, valor: j.golos })),
+    { formatarLabel: j => `Jornada ${j.jornada}`, formatarValor: j => j.golos }
+  );
+
+  graficoBarras(
+    document.getElementById('grafico-posicao'),
+    dados.golos_por_posicao.map(p => ({ ...p, valor: p.golos })),
+    { formatarLabel: p => esc(p.grupo), formatarValor: p => p.golos }
+  );
+}
+
+// ------------------------------------------------------------------
+// Navegação entre painéis
+// ------------------------------------------------------------------
+
+const CARREGADORES = {
+  classificacao: async () => renderClassificacao(await pedirJSON('/api/classificacao')),
+  jornadas: async () => renderJornadas(await pedirJSON('/api/jornadas')),
+  jogadores: carregarJogadores,
+  clubes: carregarClubes,
+  estatisticas: carregarEstatisticas,
+};
+
+let painelAtivo = 'classificacao';
+
+async function carregarPainel(nome) {
+  esconderErro();
+  try {
+    await CARREGADORES[nome]();
+  } catch (e) {
+    mostrarErro(e.message);
+  }
+}
+
+function mostrarPainel(nome) {
+  painelAtivo = nome;
+  document.querySelectorAll('.painel').forEach(p => { p.hidden = p.dataset.painel !== nome; });
+  document.querySelectorAll('.menu-item').forEach(b => b.classList.toggle('ativo', b.dataset.painel === nome));
+  carregarPainel(nome);
+}
+
+document.querySelectorAll('.menu-item').forEach(btn => {
+  btn.addEventListener('click', () => mostrarPainel(btn.dataset.painel));
+});
+
 document.getElementById('btn-gerar-calendario').addEventListener('click', gerarCalendario);
 document.getElementById('btn-reiniciar').addEventListener('click', reiniciarEpoca);
 
-carregarTudo().catch(e => mostrarErro(e.message));
+mostrarPainel('classificacao');

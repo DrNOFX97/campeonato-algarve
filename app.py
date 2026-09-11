@@ -65,6 +65,18 @@ def peso_posicao(posicao: str) -> float:
     return 1
 
 
+def grupo_posicao(posicao: str) -> str:
+    """Agrupa a posição detalhada num de 4 grupos, para estatísticas."""
+    p = (posicao or "").lower()
+    if "guarda" in p:
+        return "Guarda-Redes"
+    if "defesa" in p or "defensivo" in p:
+        return "Defesa"
+    if "avan" in p or "extremo" in p or "ponta de lan" in p:
+        return "Avançado"
+    return "Médio"
+
+
 def simular_jogo(cur, id_jogo, plantel_casa, plantel_visitante):
     golos_casa = poisson_amostra(MEDIA_GOLOS)
     golos_visitante = poisson_amostra(MEDIA_GOLOS)
@@ -178,6 +190,159 @@ def classificacao():
         cur.execute(sql)
         linhas = cur.fetchall()
     return jsonify(linhas)
+
+
+# ------------------------------------------------------------------
+# API: jogadores (lista completa, para a secção Jogadores)
+# ------------------------------------------------------------------
+
+@app.route("/api/jogadores")
+def listar_jogadores():
+    sql = """
+    SELECT
+        j.id_jogador, j.nome, j.data_nascimento, j.nacionalidade,
+        j.posicao, j.numero_camisola,
+        c.id_clube, c.nome AS clube, c.logo_url AS clube_logo
+    FROM jogador j
+    JOIN clube c ON c.id_clube = j.id_clube
+    ORDER BY c.nome, j.numero_camisola;
+    """
+    with get_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql)
+        linhas = cur.fetchall()
+    return jsonify(linhas)
+
+
+# ------------------------------------------------------------------
+# API: clubes (perfil + estatísticas, para a secção Clubes)
+# ------------------------------------------------------------------
+
+@app.route("/api/clubes")
+def listar_clubes():
+    sql = """
+    WITH linhas AS (
+        SELECT id_equipa_casa AS id_clube, golos_casa AS marcados, golos_visitante AS sofridos
+        FROM jogo WHERE jogado = TRUE
+        UNION ALL
+        SELECT id_equipa_visitante AS id_clube, golos_visitante AS marcados, golos_casa AS sofridos
+        FROM jogo WHERE jogado = TRUE
+    )
+    SELECT
+        c.id_clube, c.nome, c.cidade, c.ano_fundacao, c.logo_url,
+        e.nome AS estadio, e.cidade AS estadio_cidade, e.capacidade AS estadio_capacidade,
+        t.nome AS treinador,
+        (SELECT COUNT(*) FROM jogador WHERE id_clube = c.id_clube) AS n_jogadores,
+        COUNT(l.id_clube) AS jogos,
+        COUNT(*) FILTER (WHERE l.marcados > l.sofridos) AS vitorias,
+        COUNT(*) FILTER (WHERE l.marcados = l.sofridos) AS empates,
+        COUNT(*) FILTER (WHERE l.marcados < l.sofridos) AS derrotas,
+        COALESCE(SUM(l.marcados), 0)::int AS golos_marcados,
+        COALESCE(SUM(l.sofridos), 0)::int AS golos_sofridos,
+        COALESCE(SUM(
+            CASE WHEN l.marcados > l.sofridos THEN 3
+                 WHEN l.marcados = l.sofridos THEN 1
+                 ELSE 0 END
+        ), 0)::int AS pontos
+    FROM clube c
+    LEFT JOIN estadio e ON e.id_estadio = c.id_estadio
+    LEFT JOIN treinador t ON t.id_clube = c.id_clube
+    LEFT JOIN linhas l ON l.id_clube = c.id_clube
+    GROUP BY c.id_clube, c.nome, c.cidade, c.ano_fundacao, c.logo_url,
+             e.nome, e.cidade, e.capacidade, t.nome
+    ORDER BY pontos DESC, c.nome ASC;
+    """
+    with get_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql)
+        linhas = cur.fetchall()
+    return jsonify(linhas)
+
+
+# ------------------------------------------------------------------
+# API: estatísticas (topo marcadores/cartões, golos por jornada/posição)
+# ------------------------------------------------------------------
+
+@app.route("/api/estatisticas")
+def estatisticas():
+    with get_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT j.nome AS jogador, c.nome AS clube, c.logo_url AS clube_logo, COUNT(*) AS golos
+            FROM golo g
+            JOIN jogador j ON j.id_jogador = g.id_jogador
+            JOIN clube c ON c.id_clube = j.id_clube
+            GROUP BY j.id_jogador, j.nome, c.nome, c.logo_url
+            ORDER BY golos DESC, jogador
+            LIMIT 10
+            """
+        )
+        topo_marcadores = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+                j.nome AS jogador, c.nome AS clube, c.logo_url AS clube_logo,
+                COUNT(*) FILTER (WHERE ca.tipo_cartao = 'Amarelo') AS amarelos,
+                COUNT(*) FILTER (WHERE ca.tipo_cartao = 'Vermelho') AS vermelhos,
+                COUNT(*) AS total
+            FROM cartao ca
+            JOIN jogador j ON j.id_jogador = ca.id_jogador
+            JOIN clube c ON c.id_clube = j.id_clube
+            GROUP BY j.id_jogador, j.nome, c.nome, c.logo_url
+            ORDER BY total DESC, jogador
+            LIMIT 10
+            """
+        )
+        topo_cartoes = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT jn.numero AS jornada, COALESCE(SUM(jg.golos_casa + jg.golos_visitante), 0)::int AS golos
+            FROM jornada jn
+            LEFT JOIN jogo jg ON jg.id_jornada = jn.id_jornada AND jg.jogado = TRUE
+            GROUP BY jn.numero
+            ORDER BY jn.numero
+            """
+        )
+        golos_por_jornada = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT j.posicao
+            FROM golo g JOIN jogador j ON j.id_jogador = g.id_jogador
+            """
+        )
+        contagem_grupo = {}
+        for row in cur.fetchall():
+            grupo = grupo_posicao(row["posicao"])
+            contagem_grupo[grupo] = contagem_grupo.get(grupo, 0) + 1
+        golos_por_posicao = [
+            {"grupo": grupo, "golos": n}
+            for grupo, n in sorted(contagem_grupo.items(), key=lambda kv: -kv[1])
+        ]
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE jogado) AS jogos_jogados,
+                COUNT(*) AS total_jogos,
+                COALESCE(SUM(golos_casa + golos_visitante) FILTER (WHERE jogado), 0)::int AS total_golos
+            FROM jogo
+            """
+        )
+        resumo = dict(cur.fetchone())
+        cur.execute("SELECT COUNT(*) FILTER (WHERE tipo_cartao = 'Amarelo') AS amarelos, COUNT(*) FILTER (WHERE tipo_cartao = 'Vermelho') AS vermelhos FROM cartao")
+        resumo.update(cur.fetchone())
+        resumo["media_golos_por_jogo"] = (
+            round(resumo["total_golos"] / resumo["jogos_jogados"], 2) if resumo["jogos_jogados"] else None
+        )
+
+    return jsonify({
+        "topo_marcadores": topo_marcadores,
+        "topo_cartoes": topo_cartoes,
+        "golos_por_jornada": golos_por_jornada,
+        "golos_por_posicao": golos_por_posicao,
+        "resumo": resumo,
+    })
 
 
 # ------------------------------------------------------------------

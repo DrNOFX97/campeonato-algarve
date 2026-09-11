@@ -17,10 +17,21 @@
   </div>
 </header>
 
+<nav class="menu-principal" aria-label="Secções">
+  <div class="menu-inner">
+    <button class="menu-item" data-painel="classificacao">Classificação</button>
+    <button class="menu-item" data-painel="jornadas">Jornadas</button>
+    <button class="menu-item" data-painel="jogadores">Jogadores</button>
+    <button class="menu-item" data-painel="clubes">Clubes</button>
+    <button class="menu-item" data-painel="estatisticas">Estatísticas</button>
+  </div>
+</nav>
+
 <div id="banner-erro" class="banner-erro" hidden></div>
 
 <main>
-  <section class="classificacao" aria-labelledby="titulo-classificacao">
+
+  <section id="painel-classificacao" class="painel" data-painel="classificacao" aria-labelledby="titulo-classificacao">
     <h2 id="titulo-classificacao">Classificação</h2>
     <div class="tabela-scroll">
       <table id="tabela-classificacao">
@@ -43,12 +54,69 @@
     </div>
   </section>
 
-  <section id="estado-vazio" class="estado-vazio" hidden>
-    <p>Ainda não há calendário para esta época.</p>
-    <button id="btn-gerar-calendario" class="btn btn-ouro">Gerar calendário</button>
+  <section id="painel-jornadas" class="painel" data-painel="jornadas" aria-label="Jornadas">
+    <h2>Jornadas</h2>
+    <div id="estado-vazio" class="estado-vazio" hidden>
+      <p>Ainda não há calendário para esta época.</p>
+      <button id="btn-gerar-calendario" class="btn btn-ouro">Gerar calendário</button>
+    </div>
+    <div id="jornadas" class="jornadas"></div>
   </section>
 
-  <section id="jornadas" class="jornadas" aria-label="Jornadas"></section>
+  <section id="painel-jogadores" class="painel" data-painel="jogadores" aria-labelledby="titulo-jogadores">
+    <h2 id="titulo-jogadores">Jogadores</h2>
+    <div class="filtros">
+      <input type="search" id="filtro-jogador-nome" class="campo-filtro" placeholder="Pesquisar por nome...">
+      <select id="filtro-jogador-clube" class="campo-filtro"><option value="">Todos os clubes</option></select>
+      <select id="filtro-jogador-posicao" class="campo-filtro"><option value="">Todas as posições</option></select>
+      <select id="filtro-jogador-nacionalidade" class="campo-filtro"><option value="">Todas as nacionalidades</option></select>
+    </div>
+    <p id="contagem-jogadores" class="contagem-resultados"></p>
+    <div class="tabela-scroll">
+      <table id="tabela-jogadores">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Nome</th>
+            <th scope="col">Clube</th>
+            <th scope="col">Posição</th>
+            <th scope="col">Nacionalidade</th>
+            <th scope="col">Nascimento</th>
+          </tr>
+        </thead>
+        <tbody id="corpo-jogadores"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="painel-clubes" class="painel" data-painel="clubes" aria-labelledby="titulo-clubes">
+    <h2 id="titulo-clubes">Clubes</h2>
+    <div id="grelha-clubes" class="grelha-clubes"></div>
+  </section>
+
+  <section id="painel-estatisticas" class="painel" data-painel="estatisticas" aria-labelledby="titulo-estatisticas">
+    <h2 id="titulo-estatisticas">Estatísticas</h2>
+    <div id="resumo-estatisticas" class="resumo-estatisticas"></div>
+    <div class="grelha-graficos">
+      <div class="cartao-grafico">
+        <h3>Topo marcadores</h3>
+        <div id="grafico-marcadores" class="grafico-barras"></div>
+      </div>
+      <div class="cartao-grafico">
+        <h3>Topo cartões</h3>
+        <div id="grafico-cartoes" class="grafico-barras"></div>
+      </div>
+      <div class="cartao-grafico">
+        <h3>Golos por jornada</h3>
+        <div id="grafico-jornadas" class="grafico-barras"></div>
+      </div>
+      <div class="cartao-grafico">
+        <h3>Golos por posição</h3>
+        <div id="grafico-posicao" class="grafico-barras"></div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <footer class="rodape">
